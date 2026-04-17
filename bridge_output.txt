@@ -1,0 +1,63 @@
+
+========================================================================
+   BLOCKCHAIN AIR PURIFIER — FULL PIPELINE SIMULATION
+========================================================================
+   Ethereum:   OFFLINE
+   Batch size: 5
+   Data dir:   C:\Users\parth\AppData\Local\Temp\bridge_dtjmo4hj
+========================================================================
+
+------------------------------------------------------------------------
+   #    MQ2   MQ7  Tool   Risk    Level  Fan%  Block  Status
+------------------------------------------------------------------------
+04:03:18 [INFO] FAN: [--------------------]   0%  (OFF)
+04:03:18 [INFO] Event processed: id=evt-20260213-223318-2ab6 hash=99a9bc9e2ed8d9b4... block=1
+   1     74    25    -    0.09      LOW    0%      1  
+04:03:18 [INFO] FAN: [--------------------]   0%  (OFF)
+04:03:18 [INFO] Event processed: id=evt-20260213-223318-67f2 hash=cea40f383d8a3b75... block=2
+   2     89    29    -    0.11      LOW    0%      2  
+04:03:18 [INFO] FAN: [--------------------]   0%  (OFF)
+04:03:18 [INFO] Event processed: id=evt-20260213-223318-2ba1 hash=d9a5a7e51d5b5b73... block=3
+   3     94    34    -    0.12      LOW    0%      3  
+04:03:18 [INFO] FAN: [--------------------]   0%  (OFF)
+04:03:18 [INFO] Event processed: id=evt-20260213-223318-64f3 hash=b8ff26da6b487def... block=4
+   4    119    37    -    0.14      LOW    0%      4  
+04:03:19 [INFO] FAN: [--------------------]   0%  (OFF)
+04:03:19 [INFO] Batch 0 processed: 5 events → root=4da1e0c491f02121...
+04:03:19 [INFO] Batch ready: root=4da1e0c491f02121..., events=5
+04:03:19 [INFO] No Ethereum client configured — skipping anchoring.
+04:03:19 [INFO] Event processed: id=evt-20260213-223319-3c69 hash=6e29b1a2abc59ae7... block=5
+   5    117    32    -    0.13      LOW    0%      5  >> BATCH ANCHORED (root=4da1e0c491f0...)
+04:03:19 [INFO] FAN: [############--------]  60%  (ON)
+04:03:19 [INFO] Event processed: id=evt-20260213-223319-e480 hash=ea1be7d34cd3062c... block=6
+   6    264    78   YES   0.50     HIGH   60%      6  
+04:03:19 [INFO] FAN: [##############------]  70%  (ON)
+04:03:19 [INFO] Event processed: id=evt-20260213-223319-3737 hash=213f7c9b7f7c7297... block=7
+   7    341   106   YES   0.60     HIGH   70%      7  
+04:03:19 [INFO] FAN: [###############-----]  79%  (ON)
+04:03:19 [INFO] Event processed: id=evt-20260213-223319-f090 hash=2ce3741f33e6ab13... block=8
+   8    420   131   YES   0.69     HIGH   79%      8  
+04:03:19 [INFO] FAN: [####################] 100%  (ON)
+04:03:19 [INFO] Event processed: id=evt-20260213-223319-8777 hash=396c4709dd472a8f... block=9
+   9    498   162   YES   0.79     HIGH  100%      9  
+04:03:19 [INFO] FAN: [####################] 100%  (ON)
+04:03:19 [INFO] Batch 1 processed: 5 events → root=d876ab70e175d9fb...
+04:03:19 [INFO] Batch ready: root=d876ab70e175d9fb..., events=5
+04:03:19 [INFO] No Ethereum client configured — skipping anchoring.
+04:03:19 [INFO] Event processed: id=evt-20260213-223319-2628 hash=26801a9d07f90c91... block=10
+  10    547   173   YES   0.84 CRITICAL  100%     10  >> BATCH ANCHORED (root=d876ab70e175...)
+
+------------------------------------------------------------------------
+04:03:19 [INFO] Shutting down compliance pipeline...
+
+========================================================================
+   FINAL STATUS
+========================================================================
+   Total events processed:  10
+   Local chain blocks:      11
+   Chain integrity:         VALID
+   Batches completed:       2
+   Ethereum:                OFFLINE (local chain only)
+
+   Data stored in: C:\Users\parth\AppData\Local\Temp\bridge_dtjmo4hj
+========================================================================

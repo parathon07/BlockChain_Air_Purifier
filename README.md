@@ -1,266 +1,227 @@
-# Blockchain Compliance Layer — IoT Air Purifier Safety System
+# Blockchain Air Purifier
 
-A tamper-proof, cryptographically verifiable compliance logging system for real-time IoT safety monitoring. Safety events from sensor nodes are hashed, chained in a local blockchain, batched into Merkle trees, and anchored to Ethereum for public auditability.
+Tamper-proof IoT safety compliance for an air-purifier system using local blockchain logging, Merkle batching, and Ethereum anchoring.
 
----
+## Overview
+
+This project separates two concerns that are usually hard to balance in real-world safety systems:
+
+- The safety path must react immediately to sensor readings and control the purifier fan without waiting on slow infrastructure.
+- The compliance path must preserve an auditable, tamper-evident record of what happened and when it happened.
+
+To solve that, the system keeps real-time air-quality decisions local while sending cryptographic commitments of batched events to Ethereum. Raw events are hashed, chained in SQLite, grouped into Merkle trees, and anchored on-chain for later verification.
+
+## What The System Does
+
+- Collects safety-relevant readings from an ESP32-based air-purifier setup.
+- Computes a risk score from gas, temperature, humidity, and proximity/tool signals.
+- Controls fan behavior independently from the blockchain layer.
+- Builds a local append-only compliance chain for every processed event.
+- Batches event hashes into Merkle roots for cheaper on-chain anchoring.
+- Verifies an event end-to-end through hash integrity, Merkle inclusion, and on-chain root matching.
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                      PHYSICAL SAFETY LAYER                       │
-│  ESP32 Sensors → MQ2/MQ7 readings → AI inference → Fan control  │
-└──────────────────────┬───────────────────────────────────────────┘
-                       │  safety event (JSON)
-┌──────────────────────▼───────────────────────────────────────────┐
-│                       DECISION LAYER                             │
-│  Risk score computation → Trigger logic → Safety event creation  │
-└──────────────────────┬───────────────────────────────────────────┘
-                       │  event dict
-┌──────────────────────▼───────────────────────────────────────────┐
-│                   TRUST LAYER (Blockchain)                        │
-│                                                                   │
-│  1. SafetyEvent ─────► SHA-256 Hash                              │
-│                           │                                       │
-│  2. Hash ────────────► Local Blockchain (SQLite, append-only)    │
-│                           │                                       │
-│  3. Hash ────────────► Batch Manager (accumulate N hashes)       │
-│                           │                                       │
-│  4. Batch ───────────► Merkle Tree → single root hash           │
-│                           │                                       │
-│  5. Merkle Root ─────► Ethereum Smart Contract (on-chain)        │
-│                                                                   │
-│  6. Auditor verifies: hash ✓ → Merkle proof ✓ → on-chain ✓     │
-└──────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    A["Sensor input from ESP32"] --> B["Risk scoring and classification"]
+    B --> C["Fan control decision"]
+    B --> D["Create SafetyEvent"]
+    D --> E["SHA-256 event hash"]
+    E --> F["Local blockchain in SQLite"]
+    E --> G["Batch manager"]
+    G --> H["Merkle tree root"]
+    H --> I["Ethereum smart contract anchor"]
+
+    style B fill:#1f2937,color:#ffffff
+    style C fill:#14532d,color:#ffffff
+    style F fill:#1e3a8a,color:#ffffff
+    style I fill:#4c1d95,color:#ffffff
 ```
 
 ### Design Principles
 
-| Principle                | Implementation                                                               |
-| ------------------------ | ---------------------------------------------------------------------------- |
-| **Safety never blocked** | Blockchain runs asynchronously; fan activation is never delayed by anchoring |
-| **Tamper-proof**         | SHA-256 hashing + block chaining + Merkle trees + Ethereum immutability      |
-| **Cost-efficient**       | Only Merkle roots go on-chain (1 tx per 100 events by default)               |
-| **Publicly verifiable**  | Anyone with the event data can independently verify the full chain           |
+| Principle | How it is applied |
+| --- | --- |
+| Safety first | Fan control stays local and is never blocked by blockchain latency |
+| Tamper evidence | Event hashing, block chaining, and Merkle commitments expose modification attempts |
+| Practical cost control | Only Merkle roots are anchored on-chain instead of full event payloads |
+| Independent verification | Auditors can recompute hashes, validate proofs, and compare roots against Ethereum |
+| Modular pipeline | Python compliance modules, Solidity contract, and ESP32 test firmware are kept separate |
 
----
+## Verification Flow
+
+An auditor can verify a recorded event in three steps:
+
+1. Recompute the SHA-256 hash from the canonical event payload and compare it to the stored event hash.
+2. Verify the event hash belongs to the expected Merkle root using the saved Merkle proof.
+3. Confirm that the Merkle root matches the root stored in the deployed Ethereum contract.
 
 ## Project Structure
 
-```
+```text
 BlockChain_Air_Purifier/
-├── blockchain_compliance/          # Python compliance package
-│   ├── __init__.py
-│   ├── __main__.py                 # Package entry point (demo)
-│   ├── config.py                   # Environment-based configuration
-│   ├── safety_event.py             # SafetyEvent dataclass + canonical JSON
-│   ├── hasher.py                   # SHA-256 hashing utilities
-│   ├── blockchain.py               # Local append-only blockchain (SQLite)
-│   ├── merkle_tree.py              # Merkle tree construction + proofs
-│   ├── batch_manager.py            # Thread-safe batch accumulation
-│   ├── ethereum_anchor.py          # Web3.py client for on-chain anchoring
-│   ├── compliance_pipeline.py      # End-to-end orchestrator
-│   ├── verifier.py                 # 3-step auditor verification flow
-│   └── contracts/
-│       └── SafetyComplianceAnchor.abi.json
-│
-├── contracts/
-│   └── SafetyComplianceAnchor.sol  # Solidity smart contract
-│
-├── scripts/
-│   └── deploy.js                   # Hardhat deployment script
-│
-├── tests/                          # Pytest test suite (76 tests)
-│   ├── test_safety_event.py
-│   ├── test_hasher.py
-│   ├── test_blockchain.py
-│   ├── test_merkle_tree.py
-│   ├── test_batch_manager.py
-│   ├── test_compliance_pipeline.py
-│   └── test_verifier.py
-│
-├── .env                            # Ethereum configuration
-├── hardhat.config.js               # Hardhat node config
-├── requirements.txt                # Python dependencies
-├── package.json                    # Node.js dependencies
-├── deployment.json                 # Auto-generated after contract deploy
-├── run_ethereum_demo.py            # Full end-to-end Ethereum demo
-└── blockchain_compliance_architecture.md  # Detailed architecture document
+|-- blockchain_compliance/
+|   |-- __init__.py
+|   |-- __main__.py
+|   |-- config.py
+|   |-- safety_event.py
+|   |-- hasher.py
+|   |-- blockchain.py
+|   |-- merkle_tree.py
+|   |-- batch_manager.py
+|   |-- ethereum_anchor.py
+|   |-- compliance_pipeline.py
+|   |-- verifier.py
+|   `-- contracts/
+|       `-- SafetyComplianceAnchor.abi.json
+|-- contracts/
+|   `-- SafetyComplianceAnchor.sol
+|-- scripts/
+|   `-- deploy.js
+|-- tests/
+|   |-- test_batch_manager.py
+|   |-- test_blockchain.py
+|   |-- test_compliance_pipeline.py
+|   |-- test_hasher.py
+|   |-- test_merkle_tree.py
+|   |-- test_safety_event.py
+|   `-- test_verifier.py
+|-- esp32_fan_test/
+|   `-- esp32_fan_test.ino
+|-- bridge.py
+|-- run_ethereum_demo.py
+|-- blockchain_compliance_architecture.md
+|-- hardhat.config.js
+|-- package.json
+|-- requirements.txt
+`-- deployment.json
 ```
 
----
+## Tech Stack
 
-## Workflow — How Events Flow Through the System
-
-```
-   Sensor reading arrives
-          │
-          ▼
-   ┌─────────────────┐
-   │  SafetyEvent     │  Create structured event with timestamp,
-   │  (safety_event)  │  sensor data, risk score, fan state
-   └────────┬─────────┘
-            │
-            ▼
-   ┌─────────────────┐
-   │   SHA-256 Hash   │  Deterministic hash of canonical JSON
-   │   (hasher)       │  → unique fingerprint per event
-   └────────┬─────────┘
-            │
-       ┌────┴────┐
-       ▼         ▼
-  ┌─────────┐  ┌──────────────┐
-  │ Local    │  │ Batch Manager │
-  │ Chain    │  │ (accumulate)  │
-  │ (SQLite) │  └──────┬───────┘
-  └─────────┘         │  when batch_size reached
-                       ▼
-              ┌──────────────────┐
-              │   Merkle Tree     │  Build tree from N hashes
-              │   → single root   │  → compress to 1 commitment
-              └────────┬─────────┘
-                       │
-                       ▼
-              ┌──────────────────┐
-              │  Ethereum Anchor  │  Submit root to smart contract
-              │  (web3.py → tx)   │  → immutable public record
-              └──────────────────┘
-```
-
-### Verification Flow (Auditor)
-
-1. **Hash Integrity** — Recompute SHA-256 from raw event data, compare with stored hash
-2. **Merkle Inclusion** — Verify the event hash is in the batch using a Merkle proof
-3. **On-Chain Match** — Confirm the Merkle root matches what's stored on Ethereum
-
----
+- Python 3.10+
+- SQLite for the local append-only chain and event storage
+- `web3.py` for Ethereum connectivity
+- Hardhat for local Ethereum development and contract deployment
+- Solidity `^0.8.19` for the on-chain anchor contract
+- ESP32 firmware test sketch for fan-control validation
 
 ## Quick Start
 
-### Prerequisites
-
-- **Python 3.10+**
-- **Node.js 18+** and npm
-- pip packages: `web3`, `python-dotenv`, `pytest`
-
-### 1. Install Dependencies
+### 1. Install dependencies
 
 ```bash
-# Python
 pip install -r requirements.txt
-
-# Node.js (Hardhat)
 npm install
 ```
 
-### 2. Run Unit Tests (no Ethereum needed)
+### 2. Run the Python test suite
 
 ```bash
-python -m pytest tests/ -v
+python -m pytest tests -q
 ```
 
-All 76 tests should pass.
-
-### 3. Run Offline Demo (no Ethereum needed)
+### 3. Run the offline compliance demo
 
 ```bash
 python -m blockchain_compliance
 ```
 
-Processes 5 sample events through the full pipeline using a temporary SQLite database.
+This exercises the core compliance pipeline without requiring a blockchain node.
 
-### 4. Run with Ethereum (Full Integration)
+### 4. Run the full Ethereum flow
 
-**Terminal 1** — Start the local Ethereum node:
+Start a local Hardhat node in one terminal:
 
 ```bash
 npx hardhat node
 ```
 
-**Terminal 2** — Deploy the smart contract:
+Deploy the contract in another terminal:
 
 ```bash
 npx hardhat run scripts/deploy.js --network localhost
 ```
 
-**Terminal 2** — Run the end-to-end integration demo:
+Then run the end-to-end demo:
 
 ```bash
 python run_ethereum_demo.py
 ```
 
-This will:
+### 5. Run the bridge simulation
 
-- Connect to the local Hardhat node
-- Process 5 safety events → trigger a batch at event #5
-- Anchor the Merkle root on-chain via a transaction
-- Query the on-chain record
-- Run a full 3-step audit (hash → Merkle → on-chain) → **FULLY VERIFIED**
+```bash
+python bridge.py
+python bridge.py --no-ethereum
+python bridge.py --readings 30 --interval 2.0
+```
 
----
+The bridge script simulates a realistic stream of environmental readings, computes risk, updates fan behavior, and pushes events into the compliance pipeline.
 
 ## Configuration
 
-All settings are loaded from environment variables (`.env` file). Key variables:
+Environment variables are loaded from `.env` through `blockchain_compliance/config.py`.
 
-| Variable                       | Default                                                             | Description                        |
-| ------------------------------ | ------------------------------------------------------------------- | ---------------------------------- |
-| `BATCH_SIZE`                   | `100`                                                               | Events per Merkle tree batch       |
-| `ETHEREUM_RPC_URL`             | `http://127.0.0.1:8545`                                             | Ethereum JSON-RPC endpoint         |
-| `COMPLIANCE_CONTRACT_ADDRESS`  | —                                                                   | Deployed contract address          |
-| `COMPLIANCE_PRIVATE_KEY`       | —                                                                   | Wallet private key for signing txs |
-| `COMPLIANCE_CONTRACT_ABI_PATH` | `./blockchain_compliance/contracts/SafetyComplianceAnchor.abi.json` | Path to contract ABI               |
-| `COMPLIANCE_DB_PATH`           | `./data/blocks.db`                                                  | Local blockchain SQLite path       |
-| `COMPLIANCE_EVENTS_DB_PATH`    | `./data/events.db`                                                  | Events SQLite path                 |
-
----
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `COMPLIANCE_DB_PATH` | `data/blocks.db` under the project root | Local blockchain database |
+| `COMPLIANCE_EVENTS_DB_PATH` | `data/events.db` under the project root | Raw event storage |
+| `BATCH_SIZE` | `100` | Events per Merkle batch |
+| `BATCH_TIME_TRIGGER_SECONDS` | `86400` | Time-based batch flush trigger |
+| `ETHEREUM_RPC_URL` | `http://127.0.0.1:8545` | JSON-RPC endpoint |
+| `COMPLIANCE_CONTRACT_ADDRESS` | empty | Deployed contract address |
+| `COMPLIANCE_PRIVATE_KEY` | empty | Key used to sign anchor transactions |
+| `COMPLIANCE_CONTRACT_ABI_PATH` | packaged ABI path | ABI used by the Python anchor client |
+| `ANCHOR_MAX_RETRIES` | `5` | Retry count for failed anchor attempts |
+| `ANCHOR_INITIAL_BACKOFF_SECONDS` | `1.0` | Initial retry delay |
+| `ANCHOR_MAX_BACKOFF_SECONDS` | `300.0` | Maximum retry delay |
+| `COMPLIANCE_LOG_LEVEL` | `INFO` | Logging verbosity |
 
 ## Smart Contract
 
-**`SafetyComplianceAnchor.sol`** — Minimal, gas-efficient contract with 3 core functions:
+`contracts/SafetyComplianceAnchor.sol` stores one Merkle root per batch. The deployer becomes the authorized submitter, and each successful submission creates an `AnchorRecord` containing:
 
-| Function                                              | Type  | Description                        |
-| ----------------------------------------------------- | ----- | ---------------------------------- |
-| `submitAnchor(bytes32 _merkleRoot)`                   | Write | Store a Merkle root on-chain       |
-| `getAnchor(uint256 _batchId)`                         | Read  | Retrieve anchor record by batch ID |
-| `verifyRoot(uint256 _batchId, bytes32 _expectedRoot)` | Read  | Check if a root matches on-chain   |
+- `merkleRoot`
+- `timestamp`
+- `batchId`
 
-Access control: Only the `authorizedSubmitter` (set at deployment) can call `submitAnchor`.
+Core contract functions:
 
----
+- `submitAnchor(bytes32 _merkleRoot)` writes a new root on-chain.
+- `getAnchor(uint256 _batchId)` returns the stored anchor record.
+- `verifyRoot(uint256 _batchId, bytes32 _expectedRoot)` checks whether a supplied root matches the on-chain value.
 
-## Completion Status
+## Hardware Notes
 
-| Component           | Status           | Details                                             |
-| ------------------- | ---------------- | --------------------------------------------------- |
-| Safety Event module | ✅ Complete      | Dataclass, canonical JSON, validation               |
-| SHA-256 Hasher      | ✅ Complete      | Event, string, bytes, pairwise hashing              |
-| Local Blockchain    | ✅ Complete      | SQLite persistence, genesis block, chain validation |
-| Merkle Tree         | ✅ Complete      | Construction, root, proof generation & verification |
-| Ethereum Anchor     | ✅ Complete      | Web3.py client, retry logic, graceful fallback      |
-| Batch Manager       | ✅ Complete      | Thread-safe, size + time triggers, disk persistence |
-| Compliance Pipeline | ✅ Complete      | End-to-end orchestrator, events DB, audit           |
-| Verifier            | ✅ Complete      | 3-step audit flow (hash → Merkle → on-chain)        |
-| Solidity Contract   | ✅ Complete      | Deployed and tested on local Hardhat                |
-| Hardhat Integration | ✅ Complete      | Config, deploy script, local node                   |
-| Unit Tests          | ✅ 76/76 passing | 7 test files covering all modules                   |
-| Ethereum E2E Test   | ✅ Verified      | On-chain anchoring + full audit passed              |
+The repository includes `esp32_fan_test/esp32_fan_test.ino`, which is focused on PWM fan testing and tachometer feedback on ESP32 hardware. The wider bridge pipeline simulates sensor activity on the Python side, which makes it easier to validate the compliance stack before connecting real device inputs.
 
----
+## Testing
 
-## Security Model
+The current test suite covers:
 
-```
-Layer 1: SHA-256 hash integrity     → detects any event modification
-Layer 2: Block chaining             → detects insertion/deletion/reordering
-Layer 3: Merkle tree aggregation    → efficient batch verification
-Layer 4: Ethereum anchoring         → public immutability + timestamping
-Layer 5: Authorized submitter       → only the designated wallet can anchor
-```
+- safety event validation and canonical serialization
+- hashing determinism and helper utilities
+- local blockchain persistence and chain integrity
+- Merkle tree construction and proof verification
+- batch creation and flush behavior
+- end-to-end compliance pipeline behavior
+- audit and verification logic
 
-> **Trust boundary**: The real-time safety control path (sensor → AI → fan) is completely independent from the blockchain compliance path. Safety operations are **never** blocked by blockchain latency or failures.
+At the time of this README update, `pytest` collects `79` tests from the repository test suite.
 
----
+## Status
+
+The project already includes:
+
+- a working Python compliance package
+- a local SQLite-backed blockchain
+- Merkle batching and proof generation
+- a Solidity anchor contract with Hardhat deployment
+- an end-to-end Ethereum demo
+- a bridge simulation for sensor-to-compliance flow
+- ESP32 fan test firmware for hardware-side experimentation
 
 ## License
 
